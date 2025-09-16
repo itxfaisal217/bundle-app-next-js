@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@shopify/shopify-api": "^11.14.1",
     "next": "15.2.2",
     "node-fetch": "^3.3.2",
     "react": "^19.0.0",
