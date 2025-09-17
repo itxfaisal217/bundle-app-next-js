@@ -44,34 +44,313 @@ console.log(data)
 })
 
 ```bash
+// create the bundle
 
-  const url = "https://vercel-proxy-three-xi.vercel.app/api/proxy?endpoint=products.json";
+(async () => {
+  try {
+    const response = await fetch("http://localhost:3000/api/proxy", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        query: `
+          mutation CreateBundle($input: ProductBundleCreateInput!) {
+            productBundleCreate(input: $input) {
+              productBundleOperation {
+                id
+                status
+              }
+              userErrors {
+                field
+                message
+              }
+            }
+          }
+        `,
+        variables: {
+          input: {
+            title: "Console Test Bundle 3",
+            components: [
+              {
+                productId: "gid://shopify/Product/8353637990687",
+                quantity: 1,
+                optionSelections: [
+                  {
+                    componentOptionId: "gid://shopify/ProductOption/10590238572831",
+                    name: "Color",   // 👈 required
+                    values: ["Blue"],
+                  },
+                ],
+              },
+              {
+                productId: "gid://shopify/Product/8353638023455",
+                quantity: 1,
+                optionSelections: [
+                  {
+                    componentOptionId: "gid://shopify/ProductOption/10590238605599",
+                    name: "Color",   // 👈 required
+                    values: ["Gold"],
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      }),
+    });
 
-  const data = {
-    product: {
-      title: "Burton Custom Freestyle 151",
-      body_html: "<strong>Good snowboard!</strong>",
-      vendor: "Burton",
-      product_type: "Snowboard",
-      variants: [
-        { option1: "First", price: "10.00", sku: "123" },
-        { option1: "Second", price: "20.00", sku: "123" }
-      ]
+    const data = await response.json();
+    console.log("✅ Bundle created:", data);
+  } catch (err) {
+    console.error("❌ Error creating bundle:", err);
+  }
+})();
+
+
+// get the product data using the bundle opreation id
+
+
+(async () => {
+  try {
+    const operationId = "gid://shopify/ProductBundleOperation/36914594079"; // 👈 your bundle operation id
+
+    const response = await fetch("http://localhost:3000/api/proxy", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        query: `
+          query GetBundleProductFromOperation($id: ID!) {
+            productOperation(id: $id) {
+              ... on ProductBundleOperation {
+                id
+                status
+                product {
+                  id
+                  title
+                  status
+                  variants(first: 5) {
+                    nodes {
+                      id
+                      title
+                    }
+                  }
+                }
+              }
+            }
+          }
+        `,
+        variables: { id: operationId },
+      }),
+    });
+
+    const data = await response.json();
+    console.log("📦 Raw response:", data);
+
+    const product = data?.data?.productOperation?.product;
+    if (product) {
+      console.log("✅ Product found:", product);
+    } else {
+      console.warn("⚠️ No product returned from bundle operation");
     }
-  };
+  } catch (err) {
+    console.error("❌ Error fetching bundle product:", err);
+  }
+})();
 
-  fetch(url, {
+
+// create bundle and get the product data
+
+
+// ⏳ Helper: wait function
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+(async () => {
+  try {
+    // 1️⃣ Create the bundle
+    const createResponse = await fetch("http://localhost:3000/api/proxy", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        query: `
+          mutation CreateBundle($input: ProductBundleCreateInput!) {
+            productBundleCreate(input: $input) {
+              productBundleOperation {
+                id
+                status
+              }
+              userErrors {
+                field
+                message
+              }
+            }
+          }
+        `,
+        variables: {
+          input: {
+            title: "Console Test Bundle 12",
+            components: [
+              {
+                productId: "gid://shopify/Product/8353637990687",
+                quantity: 1,
+                optionSelections: [
+                  {
+                    componentOptionId: "gid://shopify/ProductOption/10590238572831",
+                    name: "Color",
+                    values: ["Blue"],
+                  },
+                ],
+              },
+              {
+                productId: "gid://shopify/Product/8353638023455",
+                quantity: 1,
+                optionSelections: [
+                  {
+                    componentOptionId: "gid://shopify/ProductOption/10590238605599",
+                    name: "Color",
+                    values: ["Gold"],
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      }),
+    });
+
+    const createData = await createResponse.json();
+    console.log("✅ Bundle created:", createData);
+
+    const operationId =
+      createData?.data?.productBundleCreate?.productBundleOperation?.id;
+
+    if (!operationId) {
+      throw new Error("❌ No operation ID returned from bundle creation");
+    }
+
+    // ⏳ Wait 3 seconds before fetching product data
+    console.log("⌛ Waiting 3s for bundle to process...");
+    await wait(3000);
+
+    // 2️⃣ Fetch product data from operation
+    const productResponse = await fetch("http://localhost:3000/api/proxy", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        query: `
+          query GetBundleProductFromOperation($id: ID!) {
+            productOperation(id: $id) {
+              ... on ProductBundleOperation {
+                id
+                status
+                product {
+                  id
+                  title
+                  status
+                  variants(first: 5) {
+                    nodes {
+                      id
+                      title
+                    }
+                  }
+                }
+              }
+            }
+          }
+        `,
+        variables: { id: operationId },
+      }),
+    });
+
+    const productData = await productResponse.json();
+    console.log("📦 Bundle product:", productData);
+
+    const product = productData?.data?.productOperation?.product;
+    if (product) {
+      console.log("🎯 Product ready:", product);
+      console.log("🛒 First variant ID:", product.variants.nodes[0].id);
+    } else {
+      console.warn("⚠️ No product returned yet — might still be processing");
+    }
+  } catch (err) {
+    console.error("❌ Error in bundle flow:", err);
+  }
+})();
+
+
+// make the product active
+
+
+async function activateBundle(productId) {
+  const API_URL = "http://localhost:3000/api/proxy"; // your proxy URL
+
+  const query = `
+    mutation ActivateProduct($id: ID!) {
+      productUpdate(input: { id: $id, status: ACTIVE }) {
+        product {
+          id
+          status
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  `;
+
+  const variables = { id: productId };
+
+  try {
+    const response = await fetch(API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query, variables }),
+    });
+
+    const data = await response.json();
+    console.log("✅ Activated bundle:", data);
+    return data;
+  } catch (err) {
+    console.error("❌ Error activating bundle:", err);
+  }
+}
+
+activateBundle("gid://shopify/Product/10246944031007");
+
+
+// get the option ids
+
+
+(async () => {
+  const PROXY_URL = "http://localhost:3000/api/proxy";
+  const productHandle = "chain-bracelet";
+  
+  // Call proxy REST endpoint
+  const restResp = await fetch(PROXY_URL, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify(data)
-  })
-  .then(response => response.json())
-  .then(result => {
-    console.log("Product Created:", result);
-  })
-  .catch(error => {
-    console.error("Error:", error);
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      rest: true,
+      productHandle: productHandle
+    }),
   });
+  
+  const restJson = await restResp.json();
+  
+  // restJson.product.options should be available
+  const product = restJson.product;
+  console.log("Product from admin REST:", product);
+  
+  const option = product.options.find(o =>
+    o.name.toLowerCase() === "Color".toLowerCase()
+  );
+  if (!option) {
+    console.error("Option Color not found in product options");
+    return;
+  }
+  
+  // Convert numeric option.id to GraphQL GID:
+  const componentOptionGid = `gid://shopify/ProductOption/${option.id}`;
+  console.log("ComponentOption GID:", componentOptionGid);
+})();
+
 ```
